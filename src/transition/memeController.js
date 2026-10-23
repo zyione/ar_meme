@@ -7,30 +7,30 @@ export const MEME_PRESETS = [
     action: 'look_up',
     actionName: 'Tilt Head Up ⬆️',
     image: './dafoe_looking_up.png',
-    defaultTopText: 'WHEN YOU HEAR A STRANGE NOISE',
-    defaultBottomText: 'COMING FROM THE SKY',
+    defaultTopText: '',
+    defaultBottomText: '',
     colorTheme: 'blue-cinematic',
     soundType: 'cinematic'
   },
   {
     id: 'shocked_jaw',
-    name: 'Shocked / Jaw Drop',
+    name: 'Shocked / Open Mouth',
     action: 'jaw_open',
     actionName: 'Open Mouth / Drop Jaw 😮',
-    image: './dafoe_looking_up.png', // Fallback or secondary
-    defaultTopText: 'WHEN THE TEACHER SAYS',
-    defaultBottomText: 'DON’T FORGET THE BACK PAGE',
+    image: './shocked_meme.png',
+    defaultTopText: '',
+    defaultBottomText: '',
     colorTheme: 'high-contrast',
     soundType: 'vine_boom'
   },
   {
     id: 'approving_nod',
-    name: 'Approval Nod / Smile',
+    name: 'Smile Meme',
     action: 'smile',
-    actionName: 'Smile / Nod 😊',
-    image: './dafoe_looking_up.png',
-    defaultTopText: 'WHEN YOUR CODE COMPILES',
-    defaultBottomText: 'ON THE VERY FIRST TRY',
+    actionName: 'Smile 😊',
+    image: './smile_meme.png',
+    defaultTopText: '',
+    defaultBottomText: '',
     colorTheme: 'warm-vintage',
     soundType: 'cinematic'
   }
@@ -120,7 +120,7 @@ export class MemeController {
 
     if (this.isTriggered && !this.wasTriggered) {
       // Instant dramatic impact audio!
-      sounds.playMemeImpact();
+      sounds.playMemeImpact(this.currentPreset.soundType || 'cinematic');
       this.triggerFlash();
     } else if (!this.isTriggered && this.wasTriggered) {
       sounds.playWhoosh();

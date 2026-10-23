@@ -116,20 +116,40 @@ class SoundEffects {
     }
   }
 
-  // Massive cinematic dramatic chord & sub-bass drop when meme triggers!
-  playMemeImpact() {
+  // Preset-aware dramatic impact audio
+  playMemeImpact(type = 'cinematic') {
     if (this.isMuted) return;
     this.init();
     if (!this.ctx) return;
 
-    // Debounce triggers
     const now = this.ctx.currentTime;
-    if (now - this.lastTriggerTime < 1.0) return;
+    if (now - this.lastTriggerTime < 0.8) return;
     this.lastTriggerTime = now;
 
     this.stopRiser();
 
-    // 1. Sub-Bass 808 Boom (Sine drop 130Hz -> 35Hz)
+    if (type === 'cheerful' || type === 'warm-vintage') {
+      // Cheerful / Sweet Arpeggio Chord for Smile Meme (C major pentatonic sparkle: C4, E4, G4, A4, C5)
+      const notes = [261.63, 329.63, 392.00, 440.00, 523.25];
+      notes.forEach((freq, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+
+        gain.gain.setValueAtTime(0.001, now + idx * 0.08);
+        gain.gain.linearRampToValueAtTime(0.18, now + idx * 0.08 + 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.08 + 1.2);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now + idx * 0.08);
+        osc.stop(now + idx * 0.08 + 1.3);
+      });
+      return;
+    }
+
+    // 1. Sub-Bass 808 Boom (Sine drop 140Hz -> 32Hz)
     const subOsc = this.ctx.createOscillator();
     const subGain = this.ctx.createGain();
     subOsc.type = 'sine';
@@ -144,57 +164,58 @@ class SoundEffects {
     subOsc.start(now);
     subOsc.stop(now + 1.6);
 
-    // 2. Cinematic Choir / Brass Chord (D Minor 9 chord: D2, A2, F3, C4, E4)
-    const chordNotes = [73.42, 110.0, 174.61, 261.63, 329.63];
-    chordNotes.forEach((freq, idx) => {
-      const chordOsc = this.ctx.createOscillator();
-      const chordGain = this.ctx.createGain();
-      const chordFilter = this.ctx.createBiquadFilter();
-
-      chordOsc.type = idx % 2 === 0 ? 'sawtooth' : 'triangle';
-      // Slight detune for massive lush unison
-      chordOsc.frequency.setValueAtTime(freq + (Math.random() - 0.5) * 1.5, now);
-
-      chordFilter.type = 'lowpass';
-      chordFilter.frequency.setValueAtTime(450, now);
-      chordFilter.frequency.exponentialRampToValueAtTime(3800, now + 0.12);
-      chordFilter.frequency.exponentialRampToValueAtTime(250, now + 2.5);
-
-      chordGain.gain.setValueAtTime(0.001, now);
-      chordGain.gain.linearRampToValueAtTime(0.18, now + 0.08);
-      chordGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.8);
-
-      chordOsc.connect(chordFilter);
-      chordFilter.connect(chordGain);
-      chordGain.connect(this.ctx.destination);
-
-      chordOsc.start(now);
-      chordOsc.stop(now + 3.0);
-    });
-
-    // 3. Impact Transient ("Vine boom" metallic smack)
-    const bufferSize = this.ctx.sampleRate * 0.25;
+    // 2. Metallic smack / Vine boom transient
+    const bufferSize = this.ctx.sampleRate * 0.3;
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.04));
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.05));
     }
     const noise = this.ctx.createBufferSource();
     noise.buffer = buffer;
 
     const noiseFilter = this.ctx.createBiquadFilter();
     noiseFilter.type = 'bandpass';
-    noiseFilter.frequency.setValueAtTime(800, now);
-    noiseFilter.Q.value = 3.0;
+    noiseFilter.frequency.setValueAtTime(type === 'vine_boom' ? 500 : 800, now);
+    noiseFilter.Q.value = 2.5;
 
     const noiseGain = this.ctx.createGain();
-    noiseGain.gain.setValueAtTime(0.4, now);
-    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    noiseGain.gain.setValueAtTime(type === 'vine_boom' ? 0.6 : 0.35, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
 
     noise.connect(noiseFilter);
     noiseFilter.connect(noiseGain);
     noiseGain.connect(this.ctx.destination);
     noise.start(now);
+
+    // 3. Cinematic choir (for Willem Dafoe cinematic mode)
+    if (type !== 'vine_boom') {
+      const chordNotes = [73.42, 110.0, 174.61, 261.63, 329.63];
+      chordNotes.forEach((freq, idx) => {
+        const chordOsc = this.ctx.createOscillator();
+        const chordGain = this.ctx.createGain();
+        const chordFilter = this.ctx.createBiquadFilter();
+
+        chordOsc.type = idx % 2 === 0 ? 'sawtooth' : 'triangle';
+        chordOsc.frequency.setValueAtTime(freq + (Math.random() - 0.5) * 1.5, now);
+
+        chordFilter.type = 'lowpass';
+        chordFilter.frequency.setValueAtTime(450, now);
+        chordFilter.frequency.exponentialRampToValueAtTime(3800, now + 0.12);
+        chordFilter.frequency.exponentialRampToValueAtTime(250, now + 2.5);
+
+        chordGain.gain.setValueAtTime(0.001, now);
+        chordGain.gain.linearRampToValueAtTime(0.18, now + 0.08);
+        chordGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.8);
+
+        chordOsc.connect(chordFilter);
+        chordFilter.connect(chordGain);
+        chordGain.connect(this.ctx.destination);
+
+        chordOsc.start(now);
+        chordOsc.stop(now + 3.0);
+      });
+    }
   }
 
   // Whoosh sound on camera reset
