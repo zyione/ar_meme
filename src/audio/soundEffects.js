@@ -2,7 +2,7 @@
 class SoundEffects {
   constructor() {
     this.ctx = null;
-    this.isMuted = false;
+    this.isMuted = true; // Muted by default as requested
     this.riserOsc1 = null;
     this.riserOsc2 = null;
     this.riserGain = null;

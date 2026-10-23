@@ -1,6 +1,14 @@
 import { FaceTracker } from './vision/faceTracker.js';
 import { MemeController, MEME_PRESETS } from './transition/memeController.js';
 import { sounds } from './audio/soundEffects.js';
+import { VirtualCamManager } from './virtualcam/virtualCamManager.js';
+
+// Clean Cam Mode URL check (?clean=true)
+const urlParams = new URLSearchParams(window.location.search);
+const isCleanMode = urlParams.get('clean') === 'true';
+if (isCleanMode) {
+  document.body.classList.add('clean-cam-mode');
+}
 
 // DOM Elements
 const webcam = document.getElementById('webcam');
@@ -17,8 +25,29 @@ const meterFill = document.getElementById('meter-fill');
 const meterText = document.getElementById('meter-text');
 const loadingOverlay = document.getElementById('loading-overlay');
 const loadingStatus = document.getElementById('loading-status');
+const vcamStandbyOverlay = document.getElementById('vcam-standby-overlay');
+const viewportFrame = document.getElementById('viewport-frame');
 
 // Controls
+const btnVcamMasterToggle = document.getElementById('btn-vcam-master-toggle');
+const vcamMasterDot = document.getElementById('vcam-master-dot');
+const vcamMasterText = document.getElementById('vcam-master-text');
+const vcamBroadcastBar = document.getElementById('vcam-broadcast-bar');
+
+const btnBarPopout = document.getElementById('btn-bar-popout');
+const btnBarPip = document.getElementById('btn-bar-pip');
+const btnBarCopy = document.getElementById('btn-bar-copy');
+const copyBtnText = document.getElementById('copy-btn-text');
+const btnBarGuide = document.getElementById('btn-bar-guide');
+const btnGuideToggle = document.getElementById('btn-guide-toggle');
+
+const modalVirtualCam = document.getElementById('modal-virtualcam');
+const btnModalClose = document.getElementById('btn-modal-close');
+const btnModalDone = document.getElementById('btn-modal-done');
+const btnOpenPopout = document.getElementById('btn-open-popout');
+const btnPipToggle = document.getElementById('btn-pip-toggle');
+const obsUrl = document.getElementById('obs-url');
+
 const btnCalibrate = document.getElementById('btn-calibrate');
 const btnRecalibrateDrawer = document.getElementById('btn-recalibrate-drawer');
 const btnMeshToggle = document.getElementById('btn-mesh-toggle');
@@ -41,7 +70,7 @@ const btnSnapshot = document.getElementById('btn-snapshot');
 const btnRecord = document.getElementById('btn-record');
 const recordText = document.getElementById('record-text');
 
-let isMuted = false;
+let isMuted = true; // Sound muted by default as requested
 let isMeshEnabled = false;
 let isMirrored = true;
 let isRecording = false;
@@ -55,6 +84,12 @@ const memeController = new MemeController({
   overlayElement: cinematicOverlay,
   captionTop: captionTop,
   captionBottom: captionBottom
+});
+
+// Initialize Virtual Cam Manager
+const virtualCam = new VirtualCamManager({
+  videoElement: webcam,
+  memeController: memeController
 });
 
 // Initialize Face Tracker
@@ -143,13 +178,28 @@ async function startup() {
     await tracker.init(webcam, meshCanvas);
 
     loadingStatus.textContent = 'Requesting Camera Access...';
-    const stream = await tracker.startCamera();
+
+    // Race camera start with a 3.5s timeout so UI is never permanently blocked
+    const cameraPromise = tracker.startCamera();
+    const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('timeout'), 3500));
+
+    const outcome = await Promise.race([cameraPromise, timeoutPromise]);
 
     // Fade out loading screen
     loadingOverlay.style.opacity = '0';
     setTimeout(() => {
       loadingOverlay.style.display = 'none';
     }, 450);
+
+    if (outcome === 'timeout') {
+      hudStatusText.textContent = 'CLICK CAMERA TO ALLOW ACCESS';
+      cameraPromise.then(() => {
+        hudStatusText.textContent = 'READY';
+      }).catch(err => {
+        console.warn('Camera deferred access notice:', err);
+        hudStatusText.textContent = 'CAMERA ACCESS PAUSED (CLICK TO RETRY)';
+      });
+    }
 
     // Initial audio prompt: start AudioContext on first user gesture
     const enableAudio = () => {
@@ -162,19 +212,141 @@ async function startup() {
 
   } catch (err) {
     console.error('Startup error:', err);
-    loadingStatus.innerHTML = `
-      <div style="color: #ff0055; margin-bottom: 10px;">⚠️ Camera or Model Access Failed</div>
-      <div style="font-size: 0.85rem; color: #94a3b8; max-width: 400px; text-align: center;">
-        Please make sure camera permissions are granted. Error: ${err.message || err}
-      </div>
-    `;
+    // Dismiss loading overlay so controls remain usable
+    loadingOverlay.style.opacity = '0';
+    setTimeout(() => {
+      loadingOverlay.style.display = 'none';
+    }, 450);
+    hudStatusText.textContent = 'CAMERA ERROR - CLICK TO RETRY';
   }
+}
+
+// Click viewport to retry camera if needed
+if (viewportFrame) {
+  viewportFrame.addEventListener('click', async () => {
+    if (!tracker.isRunning) {
+      hudStatusText.textContent = 'CONNECTING CAMERA...';
+      try {
+        await tracker.startCamera();
+        hudStatusText.textContent = 'READY';
+      } catch (e) {
+        console.warn('Manual camera restart error:', e);
+        hudStatusText.textContent = 'CAMERA BLOCKED / PERMISSION NEEDED';
+      }
+    }
+  });
+}
+
+// Virtual Camera UI Sync & Handlers
+function updateVirtualCamUI(isOn) {
+  if (btnVcamMasterToggle) {
+    if (isOn) {
+      btnVcamMasterToggle.classList.add('active');
+      vcamMasterText.textContent = 'Virtual Cam: ON';
+      if (vcamBroadcastBar) vcamBroadcastBar.classList.add('visible');
+    } else {
+      btnVcamMasterToggle.classList.remove('active');
+      vcamMasterText.textContent = 'Virtual Cam: OFF';
+      if (vcamBroadcastBar) vcamBroadcastBar.classList.remove('visible');
+    }
+  }
+
+  if (vcamStandbyOverlay) {
+    if (!isOn) {
+      vcamStandbyOverlay.classList.add('active');
+    } else {
+      vcamStandbyOverlay.classList.remove('active');
+    }
+  }
+}
+
+virtualCam.onStateChange = (isOn) => {
+  updateVirtualCamUI(isOn);
+};
+
+if (btnVcamMasterToggle) {
+  btnVcamMasterToggle.addEventListener('click', () => {
+    sounds.playClick();
+    const newState = virtualCam.toggleVirtualCamera();
+    updateVirtualCamUI(newState);
+  });
+}
+
+function openGuideModal() {
+  if (obsUrl) {
+    obsUrl.textContent = `${window.location.origin}${window.location.pathname}?clean=true`;
+  }
+  if (modalVirtualCam) modalVirtualCam.classList.add('open');
+}
+
+if (btnGuideToggle) btnGuideToggle.addEventListener('click', openGuideModal);
+if (btnBarGuide) btnBarGuide.addEventListener('click', openGuideModal);
+if (btnModalClose) btnModalClose.addEventListener('click', () => modalVirtualCam.classList.remove('open'));
+if (btnModalDone) btnModalDone.addEventListener('click', () => modalVirtualCam.classList.remove('open'));
+
+if (btnOpenPopout) {
+  btnOpenPopout.addEventListener('click', () => {
+    virtualCam.toggleVirtualCamera(true);
+    virtualCam.openCleanWindow();
+  });
+}
+
+if (btnBarPopout) {
+  btnBarPopout.addEventListener('click', () => {
+    virtualCam.openCleanWindow();
+  });
+}
+
+if (btnPipToggle) {
+  btnPipToggle.addEventListener('click', async () => {
+    virtualCam.toggleVirtualCamera(true);
+    await virtualCam.togglePictureInPicture();
+  });
+}
+
+if (btnBarPip) {
+  btnBarPip.addEventListener('click', async () => {
+    await virtualCam.togglePictureInPicture();
+  });
+}
+
+if (btnBarCopy) {
+  btnBarCopy.addEventListener('click', async () => {
+    const url = `${window.location.origin}${window.location.pathname}?clean=true`;
+    try {
+      await navigator.clipboard.writeText(url);
+      if (copyBtnText) copyBtnText.textContent = '✅ Copied!';
+      setTimeout(() => { if (copyBtnText) copyBtnText.textContent = '📋 Copy OBS URL'; }, 2000);
+    } catch (_) {
+      prompt('Copy this clean URL for OBS Studio:', url);
+    }
+  });
+}
+
+// Clean Mode Receiver (when opened as ?clean=true)
+if (isCleanMode) {
+  virtualCam.toggleVirtualCamera(true);
+  updateVirtualCamUI(true);
+  virtualCam.sync.onMessage = (msg) => {
+    if (msg.type === 'UPDATE_SETTING') {
+      const { name, value } = msg.payload;
+      if (name === 'preset') memeController.setPreset(value);
+      if (name === 'sensitivity') tracker.setSensitivity(value);
+      if (name === 'action') tracker.setTriggerType(value);
+      if (name === 'captions') memeController.setCaptions(value.top, value.bottom);
+      if (name === 'neutralPitch') tracker.neutralPitch = value;
+    } else if (msg.type === 'VIRTUAL_CAM_STATE') {
+      virtualCam.isOn = !!msg.payload.isOn;
+      updateVirtualCamUI(virtualCam.isOn);
+    }
+  };
 }
 
 // Calibration
 function triggerCalibration() {
   const newPitch = tracker.calibrateNeutral();
   sounds.playClick();
+  virtualCam.broadcastSetting('neutralPitch', newPitch);
   hudStatusText.textContent = 'CALIBRATED TO CURRENT POSE!';
   setTimeout(() => {
     hudStatusText.textContent = 'READY';
@@ -201,7 +373,7 @@ btnMirrorToggle.addEventListener('click', () => {
   tracker.setMirrored(isMirrored);
 });
 
-// Sound Toggle
+// Sound Toggle (Muted by default as requested)
 btnSoundToggle.addEventListener('click', () => {
   isMuted = !isMuted;
   sounds.setMuted(isMuted);
@@ -220,28 +392,31 @@ btnDrawerClose.addEventListener('click', () => {
   drawerPanel.classList.remove('open');
 });
 
-// Caption Inputs Live Update
+// Caption Inputs Live Update (Broadcasts in real time)
 function onCaptionChange() {
   memeController.setCaptions(inputTopText.value, inputBottomText.value);
+  virtualCam.broadcastSetting('captions', { top: inputTopText.value, bottom: inputBottomText.value });
 }
 inputTopText.addEventListener('input', onCaptionChange);
 inputBottomText.addEventListener('input', onCaptionChange);
 
-// Sensitivity Slider
+// Sensitivity Slider (Broadcasts in real time)
 sliderSensitivity.addEventListener('input', (e) => {
   const val = parseFloat(e.target.value);
   tracker.setSensitivity(val);
   labelSensitivity.textContent = `${val.toFixed(1)}x`;
+  virtualCam.broadcastSetting('sensitivity', val);
 });
 
-// Trigger Action Select
+// Trigger Action Select (Broadcasts in real time)
 selectTriggerAction.addEventListener('change', (e) => {
   const action = e.target.value;
   tracker.setTriggerType(action);
   hudActionHint.textContent = `(${getActionHint(action)})`;
+  virtualCam.broadcastSetting('action', action);
 });
 
-// Meme Presets Selection
+// Meme Presets Selection (Broadcasts in real time)
 presetsContainer.addEventListener('click', (e) => {
   const chip = e.target.closest('.preset-chip');
   if (!chip || chip.id === 'btn-upload-trigger') return;
@@ -260,6 +435,7 @@ presetsContainer.addEventListener('click', (e) => {
     inputTopText.value = preset.defaultTopText;
     inputBottomText.value = preset.defaultBottomText;
     hudActionHint.textContent = `(${getActionHint(preset.action)})`;
+    virtualCam.broadcastSetting('preset', presetId);
   }
 });
 
@@ -279,7 +455,7 @@ fileUpload.addEventListener('change', (e) => {
     document.querySelectorAll('.preset-chip').forEach(c => c.classList.remove('active'));
     btnUploadTrigger.classList.add('active');
 
-    const top = inputTopText.value || 'WHEN YOU LOOK UP';
+    const top = inputTopText.value || '';
     const bottom = inputBottomText.value || '';
     const action = selectTriggerAction.value || 'look_up';
 

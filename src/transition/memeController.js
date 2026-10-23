@@ -156,6 +156,7 @@ export class MemeController {
   // Update visual transition based on real-time face tracking progress (0.0 to 1.0)
   updateTransition(progress, triggered, dominantAction = 'look_up') {
     this.isTriggered = triggered;
+    this.triggerProgress = progress;
 
     // In Auto All mode: dynamically switch meme image and sound to match whichever action the user is doing!
     if (this.currentPreset.id === 'auto_all') {
@@ -226,6 +227,7 @@ export class MemeController {
   }
 
   triggerFlash() {
+    this.flashProgress = 0.85;
     const flashEl = document.getElementById('trigger-flash');
     if (flashEl) {
       flashEl.classList.remove('active');
