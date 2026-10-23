@@ -183,34 +183,23 @@ async function startup() {
 
     loadingStatus.textContent = 'Requesting Camera Access...';
 
-    // Race camera start with a 3.5s timeout so UI is never permanently blocked
-    const cameraPromise = tracker.startCamera();
-    const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('timeout'), 3500));
+    const loadingTimeout = setTimeout(() => {
+      loadingStatus.innerHTML = `
+        <div style="margin-bottom: 8px;">⏳ Waiting for camera permission...</div>
+        <div style="font-size: 0.8rem; color: #94a3b8;">Please click "Allow" in your browser's camera prompt.</div>
+      `;
+    }, 3500);
 
-    const outcome = await Promise.race([cameraPromise, timeoutPromise]);
+    await tracker.startCamera();
+    clearTimeout(loadingTimeout);
 
-    // Fade out loading screen
+    // Fade out loading screen smoothly once camera is actively running
     loadingOverlay.style.opacity = '0';
     setTimeout(() => {
       loadingOverlay.style.display = 'none';
-    }, 450);
+    }, 400);
 
-    if (outcome === 'timeout') {
-      hudStatusText.textContent = 'CLICK CAMERA TO ALLOW ACCESS';
-      if (isCleanMode && obsBrowserNotice) {
-        obsBrowserNotice.classList.add('visible');
-      }
-      cameraPromise.then(() => {
-        hudStatusText.textContent = 'READY';
-        if (obsBrowserNotice) obsBrowserNotice.classList.remove('visible');
-      }).catch(err => {
-        console.warn('Camera deferred access notice:', err);
-        hudStatusText.textContent = 'CAMERA ACCESS PAUSED (CLICK TO RETRY)';
-        if (isCleanMode && obsBrowserNotice) {
-          obsBrowserNotice.classList.add('visible');
-        }
-      });
-    }
+    hudStatusText.textContent = 'LOOK AT CAMERA TO ACTIVATE';
 
     // Initial audio prompt: start AudioContext on first user gesture
     const enableAudio = () => {
@@ -223,12 +212,12 @@ async function startup() {
 
   } catch (err) {
     console.error('Startup error:', err);
-    // Dismiss loading overlay so controls remain usable
     loadingOverlay.style.opacity = '0';
     setTimeout(() => {
       loadingOverlay.style.display = 'none';
-    }, 450);
-    hudStatusText.textContent = 'CAMERA ERROR - CLICK TO RETRY';
+    }, 400);
+
+    hudStatusText.textContent = 'CAMERA BLOCKED — CLICK TO RETRY';
     if (isCleanMode && obsBrowserNotice) {
       obsBrowserNotice.classList.add('visible');
     }

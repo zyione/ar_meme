@@ -80,6 +80,7 @@ export class FaceTracker {
   async startCamera(deviceId = null) {
     if (!this.videoElement) return;
 
+    let stream = null;
     const constraints = {
       video: {
         width: { ideal: 1280 },
@@ -90,17 +91,75 @@ export class FaceTracker {
       audio: false
     };
 
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    try {
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (err) {
+      console.warn('Initial 720p camera constraints failed, attempting fallback to basic video:', err);
+      // Fallback: request any video camera without strict resolution
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: deviceId ? { deviceId: { exact: deviceId } } : true,
+          audio: false
+        });
+      } catch (fallbackErr) {
+        console.error('All camera requests failed:', fallbackErr);
+        throw fallbackErr;
+      }
+    }
+
+    this.videoElement.muted = true;
+    this.videoElement.playsInline = true;
+    this.videoElement.autoplay = true;
+    this.videoElement.setAttribute('muted', '');
+    this.videoElement.setAttribute('playsinline', '');
+    this.videoElement.setAttribute('autoplay', '');
     this.videoElement.srcObject = stream;
 
     return new Promise((resolve) => {
-      this.videoElement.onloadedmetadata = () => {
-        this.videoElement.play();
+      let isResolved = false;
+
+      const finishStartup = async () => {
+        if (isResolved) return;
+        isResolved = true;
+
+        try {
+          await this.videoElement.play();
+        } catch (playErr) {
+          console.warn('Video element play() was deferred by browser:', playErr);
+        }
+
         this.isRunning = true;
         this.startDetectionLoop();
         resolve(stream);
       };
+
+      // If video metadata is already loaded
+      if (this.videoElement.readyState >= 1) {
+        finishStartup();
+      } else {
+        this.videoElement.onloadedmetadata = () => finishStartup();
+        this.videoElement.onloadeddata = () => finishStartup();
+        this.videoElement.oncanplay = () => finishStartup();
+        // Failsafe timeout so the camera startup is never hung waiting for events
+        setTimeout(finishStartup, 400);
+      }
     });
+  }
+
+  async startWithStream(stream) {
+    if (!this.videoElement || !stream) return;
+    this.videoElement.srcObject = stream;
+    this.videoElement.muted = true;
+    this.videoElement.playsInline = true;
+    this.videoElement.autoplay = true;
+
+    try {
+      await this.videoElement.play();
+    } catch (_) {}
+
+    this.isRunning = true;
+    this.startDetectionLoop();
+    return stream;
   }
 
   stopCamera() {
