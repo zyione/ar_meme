@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AR Meme - Face & Action Reaction Camera</title>
+  <meta name="description" content="Interactive AR Meme experience: detects your face, head pitch, and expressions in real-time, then dramatically transitions into the iconic Willem Dafoe looking up meme." />
+  <link rel="icon" type="image/png" href="./dafoe_looking_up.png" />
+  <link rel="stylesheet" href="./src/styles/main.css" />
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand-section">
+        <div class="brand-logo" title="AR Meme Vision">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8 0-.46.04-.92.1-1.36 1.76.67 3.65 1.05 5.9 1.05 3.31 0 6.27-.86 8.57-2.28.91 1.72 1.43 3.66 1.43 5.59 0 4.41-3.59 8-8 8zm6.54-9.33c-2.18 1.45-5.07 2.33-8.54 2.33-2.16 0-3.99-.34-5.68-.96C5.07 7.74 8.28 4.7 12 4.7c2.97 0 5.6 1.48 7.21 3.75-.22.75-.45 1.48-.67 2.22z"/>
+          </svg>
+        </div>
+        <h1 class="brand-title">AR MEME</h1>
+        <span class="brand-tag">VISION AI</span>
+      </div>
+
+      <div class="header-actions">
+        <button id="btn-calibrate" class="btn-glass" title="Calibrate your current head angle as neutral baseline">
+          <span>🎯</span> Calibrate
+        </button>
+        <button id="btn-mesh-toggle" class="btn-glass" title="Toggle 3D facial mesh wireframe">
+          <span>🌐</span> Mesh
+        </button>
+        <button id="btn-mirror-toggle" class="btn-glass btn-icon-only" title="Toggle camera mirror">
+          🪞
+        </button>
+        <button id="btn-sound-toggle" class="btn-glass btn-icon-only" title="Toggle sound FX">
+          🔊
+        </button>
+        <button id="btn-drawer-toggle" class="btn-glass" title="Edit captions and settings">
+          <span>⚙️</span> Captions
+        </button>
+      </div>
+    </header>
+
+    <!-- Stage Viewport -->
+    <main class="stage-container">
+      <div class="viewport-frame" id="viewport-frame">
+        <!-- Live Camera Stream -->
+        <video id="webcam" playsinline autoplay muted class="video-feed" data-mirrored="true"></video>
+
+        <!-- Meme Reaction Layer -->
+        <img id="meme-image" src="./dafoe_looking_up.png" alt="Willem Dafoe Looking Up Meme" class="meme-layer" />
+
+        <!-- 3D Face Mesh Wireframe Canvas -->
+        <canvas id="mesh-canvas" class="mesh-canvas"></canvas>
+
+        <!-- Cinematic Atmospheric Color Grade & Vignette -->
+        <div id="cinematic-overlay" class="cinematic-overlay"></div>
+
+        <!-- Trigger Impact White Flash -->
+        <div id="trigger-flash" class="trigger-flash"></div>
+
+        <!-- Cyberpunk Target Reticles -->
+        <div class="hud-corner corner-tl"></div>
+        <div class="hud-corner corner-tr"></div>
+        <div class="hud-corner corner-bl"></div>
+        <div class="hud-corner corner-br"></div>
+
+        <!-- HUD Telemetry & Pitch Indicator -->
+        <div class="hud-overlay">
+          <div class="hud-pill">
+            <span id="status-dot" class="status-dot"></span>
+            <span id="hud-status-text">INITIALIZING CAMERA...</span>
+          </div>
+          <div class="hud-pill" id="hud-pitch-container">
+            <span>PITCH:</span>
+            <span id="hud-pitch-value" style="color: var(--accent-cyan); font-family: monospace;">0.0°</span>
+            <span id="hud-action-hint" style="color: var(--accent-amber); margin-left: 4px;">(LOOK UP ⬆️)</span>
+          </div>
+        </div>
+
+        <!-- Dynamic Trigger Progress Meter -->
+        <div class="trigger-meter">
+          <div class="meter-fill" id="meter-fill"></div>
+          <div class="meter-text" id="meter-text">LOOK UP TO TRIGGER MEME</div>
+        </div>
+
+        <!-- Classic Impact Meme Captions -->
+        <div id="meme-captions" class="meme-captions">
+          <div id="caption-top" class="caption-line">WHEN YOU HEAR A STRANGE NOISE</div>
+          <div id="caption-bottom" class="caption-line">COMING FROM THE SKY</div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Bottom Toolbar -->
+    <footer class="app-toolbar">
+      <!-- Meme Presets -->
+      <div class="presets-container" id="presets-container">
+        <button class="preset-chip active" data-preset="dafoe_looking_up">
+          <span>⬆️</span> Willem Dafoe (Look Up)
+        </button>
+        <button class="preset-chip" data-preset="shocked_jaw">
+          <span>😮</span> Shocked (Open Mouth)
+        </button>
+        <button class="preset-chip" data-preset="approving_nod">
+          <span>😊</span> Nod of Approval
+        </button>
+        <button class="preset-chip" id="btn-upload-trigger">
+          <span>📁</span> Custom Image...
+        </button>
+        <input type="file" id="file-upload" accept="image/*" style="display: none;" />
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="actions-container">
+        <button id="btn-snapshot" class="btn-glass btn-primary" title="Download snapshot image">
+          <span>📸</span> Snap Meme
+        </button>
+        <button id="btn-record" class="btn-glass" title="Record 5-second reaction video">
+          <span id="record-dot" style="color: #ff0055;">⏺️</span> <span id="record-text">Record</span>
+        </button>
+      </div>
+    </footer>
+
+    <!-- Caption & Tuning Drawer -->
+    <aside class="drawer-panel" id="drawer-panel">
+      <div class="drawer-header">
+        <h3 class="drawer-title">Meme Studio & Controls</h3>
+        <button id="btn-drawer-close" class="drawer-close" aria-label="Close settings drawer">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="input-top-text">Top Caption Text</label>
+        <input type="text" id="input-top-text" class="form-input" value="WHEN YOU HEAR A STRANGE NOISE" placeholder="TOP TEXT..." />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="input-bottom-text">Bottom Caption Text</label>
+        <input type="text" id="input-bottom-text" class="form-input" value="COMING FROM THE SKY" placeholder="BOTTOM TEXT..." />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="select-trigger-action">Trigger Action</label>
+        <select id="select-trigger-action" class="form-input">
+          <option value="look_up">Tilt Head Up (Look Up ⬆️)</option>
+          <option value="jaw_open">Open Mouth / Drop Jaw 😮</option>
+          <option value="smile">Smile / Nod 😊</option>
+          <option value="tilt_side">Tilt Head Sideways 🔄</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">
+          Trigger Sensitivity: <span id="label-sensitivity" style="color: var(--accent-cyan);">1.0x</span>
+        </label>
+        <div class="slider-container">
+          <input type="range" id="slider-sensitivity" class="form-slider" min="0.5" max="2.0" step="0.1" value="1.0" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <button id="btn-recalibrate-drawer" class="btn-glass" style="justify-content: center;">
+          🎯 Calibrate Neutral Head Pose
+        </button>
+      </div>
+    </aside>
+
+    <!-- Initial Loading Screen -->
+    <div class="loading-overlay" id="loading-overlay">
+      <div class="spinner-ring"></div>
+      <p class="loading-text" id="loading-status">Loading MediaPipe Face AI & Model...</p>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
