@@ -63,38 +63,56 @@ const tracker = new FaceTracker({
 });
 
 function handleVisionFrame(data) {
-  const { hasFace, triggerProgress, isTriggered, pitchDeg, activeTriggerType } = data;
+  const { hasFace, triggerProgress, isTriggered, pitchDeg, activeTriggerType, dominantAction } = data;
 
   if (!hasFace) {
     statusDot.className = 'status-dot';
     hudStatusText.textContent = 'LOOK AT CAMERA TO ACTIVATE';
     meterFill.style.width = '0%';
-    memeController.updateTransition(0, false);
+    memeController.updateTransition(0, false, dominantAction);
     return;
   }
 
   // Update Telemetry
   hudPitchValue.textContent = `${pitchDeg >= 0 ? '+' : ''}${pitchDeg.toFixed(1)}°`;
 
+  const isAuto = activeTriggerType === 'auto_all';
+  const currentAction = isAuto ? (dominantAction || 'look_up') : activeTriggerType;
+
   if (isTriggered) {
     statusDot.className = 'status-dot triggered';
-    hudStatusText.textContent = 'MEME TRIGGERED!';
-    meterText.textContent = '🔥 MEME ACTIVE 🔥';
-  } else if (triggerProgress > 0.3) {
+    hudStatusText.textContent = `${getActionName(currentAction).toUpperCase()} TRIGGERED!`;
+    meterText.textContent = `🔥 ${getActionName(currentAction).toUpperCase()} ACTIVE 🔥`;
+  } else if (triggerProgress > 0.20) {
     statusDot.className = 'status-dot active';
-    hudStatusText.textContent = 'ANTICIPATION SWELL...';
-    meterText.textContent = `${Math.round(triggerProgress * 100)}% - KEEP GOING!`;
+    hudStatusText.textContent = `${getActionName(currentAction).toUpperCase()} (${Math.round(triggerProgress * 100)}%)`;
+    meterText.textContent = `${Math.round(triggerProgress * 100)}% - ${getActionHint(currentAction)}`;
   } else {
     statusDot.className = 'status-dot active';
-    hudStatusText.textContent = 'READY • ' + getActionHint(activeTriggerType);
-    meterText.textContent = getActionHint(activeTriggerType) + ' TO TRIGGER';
+    if (isAuto) {
+      hudStatusText.textContent = 'AUTO MODE • DO ANY ACTION';
+      meterText.textContent = 'LOOK UP ⬆️ • OPEN MOUTH 😮 • SMILE 😊';
+    } else {
+      hudStatusText.textContent = 'READY • ' + getActionHint(currentAction);
+      meterText.textContent = getActionHint(currentAction) + ' TO TRIGGER';
+    }
   }
 
   // Update Trigger Bar Fill
   meterFill.style.width = `${Math.min(100, triggerProgress * 100)}%`;
 
   // Update Visuals & Audio in Controller
-  memeController.updateTransition(triggerProgress, isTriggered);
+  memeController.updateTransition(triggerProgress, isTriggered, dominantAction);
+}
+
+function getActionName(type) {
+  switch (type) {
+    case 'look_up': return 'Willem Dafoe';
+    case 'jaw_open': return 'Shocked';
+    case 'smile': return 'Smile Meme';
+    case 'auto_all': return 'Auto';
+    default: return 'Meme';
+  }
 }
 
 function getActionHint(type) {
@@ -102,6 +120,7 @@ function getActionHint(type) {
     case 'look_up': return 'LOOK UP ⬆️';
     case 'jaw_open': return 'OPEN MOUTH 😮';
     case 'smile': return 'SMILE 😊';
+    case 'auto_all': return 'ANY GESTURE ⚡';
     case 'tilt_side': return 'TILT HEAD 🔄';
     default: return 'ACTION';
   }

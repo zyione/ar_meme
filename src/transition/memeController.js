@@ -1,5 +1,26 @@
 import { sounds } from '../audio/soundEffects.js';
 
+export const ACTION_MEME_MAP = {
+  look_up: {
+    image: './dafoe_looking_up.png',
+    soundType: 'cinematic',
+    name: 'Willem Dafoe',
+    hint: 'LOOK UP ⬆️'
+  },
+  jaw_open: {
+    image: './shocked_meme.png',
+    soundType: 'vine_boom',
+    name: 'Shocked',
+    hint: 'OPEN MOUTH 😮'
+  },
+  smile: {
+    image: './smile_meme.png',
+    soundType: 'cheerful',
+    name: 'Smile Meme',
+    hint: 'SMILE 😊'
+  }
+};
+
 export const MEME_PRESETS = [
   {
     id: 'dafoe_looking_up',
@@ -32,7 +53,18 @@ export const MEME_PRESETS = [
     defaultTopText: '',
     defaultBottomText: '',
     colorTheme: 'warm-vintage',
-    soundType: 'cinematic'
+    soundType: 'cheerful'
+  },
+  {
+    id: 'auto_all',
+    name: 'Auto (All Reactions)',
+    action: 'auto_all',
+    actionName: 'Auto Detect (Look Up, Mouth Open, or Smile) ⚡',
+    image: './dafoe_looking_up.png',
+    defaultTopText: '',
+    defaultBottomText: '',
+    colorTheme: 'dynamic',
+    soundType: 'dynamic'
   }
 ];
 
@@ -46,6 +78,8 @@ export class MemeController {
     this.captionBottom = options.captionBottom;
 
     this.currentPreset = MEME_PRESETS[0];
+    this.activeSoundType = 'cinematic';
+    this.currentAutoAction = 'look_up';
     this.customImageUrl = null;
     this.isTriggered = false;
     this.wasTriggered = false;
@@ -65,17 +99,24 @@ export class MemeController {
     if (!preset) return;
 
     this.currentPreset = preset;
-    this.topText = preset.defaultTopText;
-    this.bottomText = preset.defaultBottomText;
-    this.memeImageElement.src = this.customImageUrl && presetId === 'custom'
-      ? this.customImageUrl
-      : preset.image;
+    this.topText = preset.defaultTopText || '';
+    this.bottomText = preset.defaultBottomText || '';
+
+    if (preset.id === 'auto_all') {
+      this.memeImageElement.src = ACTION_MEME_MAP.look_up.image;
+      this.activeSoundType = ACTION_MEME_MAP.look_up.soundType;
+    } else {
+      this.memeImageElement.src = this.customImageUrl && presetId === 'custom'
+        ? this.customImageUrl
+        : preset.image;
+      this.activeSoundType = preset.soundType || 'cinematic';
+    }
 
     this.updateCaptions();
     return preset;
   }
 
-  setCustomImage(dataUrl, action = 'look_up', topText = 'WHEN YOU LOOK UP', bottomText = '') {
+  setCustomImage(dataUrl, action = 'look_up', topText = '', bottomText = '') {
     this.customImageUrl = dataUrl;
     this.currentPreset = {
       id: 'custom',
@@ -91,6 +132,7 @@ export class MemeController {
     this.topText = topText;
     this.bottomText = bottomText;
     this.memeImageElement.src = dataUrl;
+    this.activeSoundType = 'cinematic';
     this.updateCaptions();
   }
 
@@ -112,15 +154,32 @@ export class MemeController {
   }
 
   // Update visual transition based on real-time face tracking progress (0.0 to 1.0)
-  updateTransition(progress, triggered) {
+  updateTransition(progress, triggered, dominantAction = 'look_up') {
     this.isTriggered = triggered;
+
+    // In Auto All mode: dynamically switch meme image and sound to match whichever action the user is doing!
+    if (this.currentPreset.id === 'auto_all') {
+      const targetAction = dominantAction && ACTION_MEME_MAP[dominantAction] ? dominantAction : 'look_up';
+      if (this.currentAutoAction !== targetAction && progress > 0.10) {
+        this.currentAutoAction = targetAction;
+        const config = ACTION_MEME_MAP[targetAction];
+        if (config) {
+          this.memeImageElement.src = config.image;
+          this.activeSoundType = config.soundType;
+        }
+      }
+    }
 
     // Audio cues
     sounds.updateRiser(progress);
 
     if (this.isTriggered && !this.wasTriggered) {
       // Instant dramatic impact audio!
-      sounds.playMemeImpact(this.currentPreset.soundType || 'cinematic');
+      const soundToPlay = this.currentPreset.id === 'auto_all'
+        ? (this.activeSoundType || 'cinematic')
+        : (this.currentPreset.soundType || 'cinematic');
+
+      sounds.playMemeImpact(soundToPlay);
       this.triggerFlash();
     } else if (!this.isTriggered && this.wasTriggered) {
       sounds.playWhoosh();
@@ -128,31 +187,29 @@ export class MemeController {
     this.wasTriggered = this.isTriggered;
 
     // Visual calculations:
-    // When progress goes 0 -> 1:
-    // 1. Camera scale zooms in slightly (1.0 -> 1.18)
-    const camZoom = 1.0 + progress * 0.18;
-    // 2. Cold blue color grading intensifies
+    // Gentle 3% zoom so it NEVER feels zoomed in or cropped!
+    const camZoom = 1.0 + progress * 0.03;
     const blueIntensity = progress * 0.75;
-    // 3. Vignette intensifies
     const vignetteOpacity = progress * 0.85;
-    // 4. Meme image opacity crossfade:
-    // Starts appearing at 30%, fully visible by 85%
-    const memeOpacity = Math.max(0, Math.min(1.0, (progress - 0.25) / 0.60));
+
+    // Meme image opacity crossfade:
+    // Starts appearing at 20%, fully visible by 80%
+    const memeOpacity = Math.max(0, Math.min(1.0, (progress - 0.20) / 0.60));
 
     if (this.videoElement) {
       this.videoElement.style.transform = `scale(${camZoom}) ${this.videoElement.dataset.mirrored === 'true' ? 'scaleX(-1)' : ''}`;
       this.videoElement.style.filter = `
-        brightness(${1.0 - progress * 0.15})
-        contrast(${1.0 + progress * 0.35})
-        saturate(${1.0 + progress * 0.2})
+        brightness(${1.0 - progress * 0.12})
+        contrast(${1.0 + progress * 0.25})
+        saturate(${1.0 + progress * 0.15})
       `;
     }
 
     if (this.memeImageElement) {
       this.memeImageElement.style.opacity = memeOpacity;
-      // Slight dolly zoom into Willem Dafoe's eyes
-      const memeScale = 1.08 - (1 - progress) * 0.08;
-      this.memeImageElement.style.transform = `scale(${memeScale})`;
+      // Gentle 2% scale without zooming in or cutting off hands/face
+      const memeScale = 1.0 + progress * 0.02;
+      this.memeImageElement.style.transform = `translate(-50%, -50%) scale(${memeScale})`;
     }
 
     if (this.overlayElement) {
@@ -163,8 +220,8 @@ export class MemeController {
     // Toggle meme captions visibility when triggered or close to triggered
     const captionsContainer = document.getElementById('meme-captions');
     if (captionsContainer) {
-      captionsContainer.style.opacity = progress > 0.65 ? '1' : '0';
-      captionsContainer.style.transform = `scale(${0.9 + progress * 0.1})`;
+      captionsContainer.style.opacity = (this.topText.trim() || this.bottomText.trim()) && progress > 0.65 ? '1' : '0';
+      captionsContainer.style.transform = `scale(${0.95 + progress * 0.05})`;
     }
   }
 

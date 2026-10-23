@@ -229,39 +229,65 @@ export class FaceTracker {
       this.neutralPitch = this.smoothedPitch;
     }
 
-    // 2. Compute Trigger Progress according to activeTriggerType
+    // 2. Compute Progress for All Actions Concurrently
+    // A) Look Up Progress (Head Pitch + Eye Look Up)
+    const pitchDelta = this.smoothedPitch - this.neutralPitch;
+    const pitchThreshold = 16 / this.sensitivity;
+    const pitchProgress = Math.max(0, Math.min(1.0, pitchDelta / pitchThreshold));
+    const eyeProgress = Math.max(0, Math.min(1.0, (this.smoothedEyeLookUp - 0.15) / (0.40 / this.sensitivity)));
+    const lookUpProgress = Math.max(pitchProgress, pitchProgress * 0.7 + eyeProgress * 0.4);
+
+    // B) Jaw Open (Shocked) Progress
+    const jawThreshold = 0.30 / this.sensitivity;
+    const jawOpenProgress = Math.max(0, Math.min(1.0, this.smoothedJawOpen / jawThreshold));
+
+    // C) Smile Progress
+    const smileThreshold = 0.35 / this.sensitivity;
+    const smileProgress = Math.max(0, Math.min(1.0, this.smoothedSmile / smileThreshold));
+
+    // D) Tilt Side Progress
+    const rollThreshold = 20 / this.sensitivity;
+    const tiltSideProgress = Math.max(0, Math.min(1.0, Math.abs(this.smoothedRoll) / rollThreshold));
+
+    // Determine target progress and dominant action
     let targetProgress = 0;
+    let dominantAction = this.activeTriggerType;
 
-    if (this.activeTriggerType === 'look_up') {
-      // Looking Up Calculation:
-      // A) Pitch difference above neutral
-      const pitchDelta = this.smoothedPitch - this.neutralPitch;
-      // Normal looking up threshold: ~18 degrees, adjusted by sensitivity
-      const pitchThreshold = 18 / this.sensitivity;
-      const pitchProgress = Math.max(0, Math.min(1.0, pitchDelta / pitchThreshold));
+    if (this.activeTriggerType === 'auto_all') {
+      // Auto Mode: Dynamically pick whichever gesture is currently strongest!
+      let maxScore = 0;
+      dominantAction = 'look_up';
 
-      // B) Eye gaze looking up blendshape contribution
-      const eyeProgress = Math.max(0, Math.min(1.0, (this.smoothedEyeLookUp - 0.15) / (0.45 / this.sensitivity)));
+      if (lookUpProgress > maxScore) {
+        maxScore = lookUpProgress;
+        dominantAction = 'look_up';
+      }
+      if (jawOpenProgress > maxScore) {
+        maxScore = jawOpenProgress;
+        dominantAction = 'jaw_open';
+      }
+      if (smileProgress > maxScore) {
+        maxScore = smileProgress;
+        dominantAction = 'smile';
+      }
 
-      // Combined look-up metric: head pitch dominates, eye gaze assists
-      targetProgress = Math.max(pitchProgress, pitchProgress * 0.7 + eyeProgress * 0.4);
+      targetProgress = maxScore;
+    } else if (this.activeTriggerType === 'look_up') {
+      targetProgress = lookUpProgress;
+      dominantAction = 'look_up';
     } else if (this.activeTriggerType === 'jaw_open') {
-      // Shocked expression / mouth open
-      const threshold = 0.35 / this.sensitivity;
-      targetProgress = Math.max(0, Math.min(1.0, this.smoothedJawOpen / threshold));
+      targetProgress = jawOpenProgress;
+      dominantAction = 'jaw_open';
     } else if (this.activeTriggerType === 'smile') {
-      // Smile / nodding approval
-      const threshold = 0.40 / this.sensitivity;
-      targetProgress = Math.max(0, Math.min(1.0, this.smoothedSmile / threshold));
+      targetProgress = smileProgress;
+      dominantAction = 'smile';
     } else if (this.activeTriggerType === 'tilt_side') {
-      // Head tilt
-      const absRoll = Math.abs(this.smoothedRoll);
-      const threshold = 22 / this.sensitivity;
-      targetProgress = Math.max(0, Math.min(1.0, absRoll / threshold));
+      targetProgress = tiltSideProgress;
+      dominantAction = 'tilt_side';
     }
 
     // Smooth trigger progress
-    const progressAlpha = targetProgress > this.smoothedTriggerProgress ? 0.35 : 0.18;
+    const progressAlpha = targetProgress > this.smoothedTriggerProgress ? 0.35 : 0.20;
     this.smoothedTriggerProgress = this.smoothedTriggerProgress * (1 - progressAlpha) + targetProgress * progressAlpha;
     if (this.smoothedTriggerProgress < 0.02) this.smoothedTriggerProgress = 0;
     if (this.smoothedTriggerProgress > 0.98) this.smoothedTriggerProgress = 1;
@@ -288,7 +314,13 @@ export class FaceTracker {
         smile: this.smoothedSmile,
         rollDeg: this.smoothedRoll,
         nosePos: { x: nose.x, y: nose.y },
-        activeTriggerType: this.activeTriggerType
+        activeTriggerType: this.activeTriggerType,
+        dominantAction,
+        actionsProgress: {
+          look_up: lookUpProgress,
+          jaw_open: jawOpenProgress,
+          smile: smileProgress
+        }
       });
     }
   }
