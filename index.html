@@ -99,6 +99,21 @@
           </div>
         </div>
 
+        <!-- OBS Browser Source Fallback Notice -->
+        <div id="obs-browser-notice" class="obs-browser-notice">
+          <div class="notice-icon">⚠️</div>
+          <div class="notice-title">Camera Locked by Chrome</div>
+          <div class="notice-body">
+            Windows only allows one app to access the physical webcam at a time.<br/>
+            Since Chrome is already running your camera, use <strong>Window Capture</strong> in OBS:
+          </div>
+          <div class="notice-steps">
+            <strong>1.</strong> In OBS Sources, click <strong>+ ➔ Window Capture</strong><br/>
+            <strong>2.</strong> Choose <strong>[chrome.exe]: AR Meme Clean Feed</strong> (or Studio)<br/>
+            <strong>3.</strong> Click <strong>Start Virtual Camera</strong> in OBS!
+          </div>
+        </div>
+
         <!-- Cyberpunk Target Reticles -->
         <div class="hud-corner corner-tl"></div>
         <div class="hud-corner corner-tr"></div>
@@ -259,9 +274,11 @@
             <div class="step-content">
               <span class="step-title">Option C: Real Webcam in Discord/Zoom (via OBS Virtual Camera)</span>
               <p class="step-desc">
-                1. In OBS Studio, add a <span class="code-badge">Browser</span> source with URL: <span class="code-badge" id="obs-url"></span> (1280x720).<br/>
-                2. Click <strong>Start Virtual Camera</strong> in OBS.<br/>
-                3. In Discord / Zoom / Meet settings, select <strong>OBS Virtual Camera</strong> as your webcam device!
+                <em>Note: In Windows, the webcam cannot be accessed by OBS Browser Source while Chrome is running it (results in black screen). Use <strong>Window Capture</strong> instead:</em><br/>
+                1. Click <strong>Clean Pop-out</strong> above to open the clean feed window.<br/>
+                2. In OBS Studio Sources, click <strong>+ ➔ Window Capture</strong> and pick <strong>[chrome.exe]: AR Meme Clean Feed</strong>.<br/>
+                3. Click <strong>Start Virtual Camera</strong> in OBS.<br/>
+                4. In Discord / Zoom settings, choose <strong>OBS Virtual Camera</strong> as your webcam device!
               </p>
             </div>
           </div>

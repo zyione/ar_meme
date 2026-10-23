@@ -69,20 +69,22 @@ AR Meme features a built-in **Virtual Camera mode** that separates the **Dev Tes
 
 This is the recommended setup to use AR Meme as your actual webcam device inside **Discord**, **Zoom**, **Google Meet**, or **Microsoft Teams**:
 
-#### Step 1: Open the AR Meme Studio & Turn Virtual Cam ON
-1. Run `npm run dev` and open `http://localhost:5174/` in your browser.
-2. In the top header, click the **`Virtual Cam: OFF`** switch to turn it **`Virtual Cam: ON`** (it will glow green and show the live broadcast indicator).
+> ⚠️ **Important Note on OBS Browser Source vs. Window Capture:**  
+> On Windows, your physical webcam hardware can only be accessed by **one application at a time**. Because Chrome is already running your camera, OBS's internal Browser Source will be blocked by Windows and show a **black screen**.  
+> **The solution is to use Window Capture in OBS**, which captures the clean 60 FPS video directly from Chrome with zero camera conflicts!
 
-#### Step 2: Add Browser Source in OBS Studio
+#### Step 1: Open AR Meme Studio & Launch Clean Pop-out
+1. Run `npm run dev` and open `http://localhost:5174/` in your browser.
+2. In the top header, click the **`Virtual Cam: OFF`** switch to turn it **`Virtual Cam: ON`**.
+3. In the green broadcast bar, click **`🪟 Clean Pop-out`**. A clean, borderless window titled `AR Meme Clean Feed` will open.
+
+#### Step 2: Add Window Capture in OBS Studio
 1. Open **OBS Studio**.
-2. Under the **Sources** dock, click **`+`** ➔ select **`Browser`**.
+2. Under the **Sources** dock, click **`+`** ➔ select **`Window Capture`** (NOT Browser Source).
 3. Name it `AR Meme Camera` and configure:
-   - **URL**: `http://localhost:5174/?clean=true` (or click *Copy OBS URL* in the AR Meme header).
-   - **Width**: `1280`
-   - **Height**: `720`
-   - **FPS**: `60`
-   - Check **"Shutdown source when not visible"**: *Unchecked* (keep active in background).
-4. Click **OK**. The clean camera and meme transition feed will appear on your OBS canvas!
+   - **Window**: Select `[chrome.exe]: AR Meme Clean Feed - OBS Window Capture` (or your main AR Meme window).
+   - **Capture Method**: `Windows 10 / 11 (Windows Graphics Capture)`.
+4. Click **OK**. The clean camera and meme transition feed will appear on your OBS canvas with full 60 FPS clarity!
 
 #### Step 3: Start OBS Virtual Camera
 1. In OBS Studio under the **Controls** dock (bottom right), click **Start Virtual Camera**.
@@ -95,7 +97,7 @@ This is the recommended setup to use AR Meme as your actual webcam device inside
 #### Step 5: Real-Time Live Control from the Studio
 - Keep the main AR Meme Studio open on a second monitor or side-by-side window.
 - Any time you look up, open your mouth, or smile, the meme transition immediately plays into your Discord / Zoom camera!
-- You can change presets (Willem Dafoe, Shocked, Smile, or Auto), tune sensitivity, type captions, or hit the **Virtual Cam Master Toggle (OFF/ON)** to show an offline standby screen whenever you want privacy. All changes sync across windows in real-time via `BroadcastChannel`!
+- You can change presets (Willem Dafoe, Shocked, Smile, or Auto), tune sensitivity, type captions, or hit the **Virtual Cam Master Toggle (OFF/ON)** to show an offline standby screen whenever you want privacy. All changes sync across windows in real-time!
 
 ---
 

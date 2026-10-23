@@ -24,9 +24,12 @@ const hudActionHint = document.getElementById('hud-action-hint');
 const meterFill = document.getElementById('meter-fill');
 const meterText = document.getElementById('meter-text');
 const loadingOverlay = document.getElementById('loading-overlay');
-const loadingStatus = document.getElementById('loading-status');
 const vcamStandbyOverlay = document.getElementById('vcam-standby-overlay');
+const obsBrowserNotice = document.getElementById('obs-browser-notice');
 const viewportFrame = document.getElementById('viewport-frame');
+
+// Export virtualCam on window for popout windows
+window.virtualCam = null;
 
 // Controls
 const btnVcamMasterToggle = document.getElementById('btn-vcam-master-toggle');
@@ -91,6 +94,7 @@ const virtualCam = new VirtualCamManager({
   videoElement: webcam,
   memeController: memeController
 });
+window.virtualCam = virtualCam;
 
 // Initialize Face Tracker
 const tracker = new FaceTracker({
@@ -193,11 +197,18 @@ async function startup() {
 
     if (outcome === 'timeout') {
       hudStatusText.textContent = 'CLICK CAMERA TO ALLOW ACCESS';
+      if (isCleanMode && obsBrowserNotice) {
+        obsBrowserNotice.classList.add('visible');
+      }
       cameraPromise.then(() => {
         hudStatusText.textContent = 'READY';
+        if (obsBrowserNotice) obsBrowserNotice.classList.remove('visible');
       }).catch(err => {
         console.warn('Camera deferred access notice:', err);
         hudStatusText.textContent = 'CAMERA ACCESS PAUSED (CLICK TO RETRY)';
+        if (isCleanMode && obsBrowserNotice) {
+          obsBrowserNotice.classList.add('visible');
+        }
       });
     }
 
@@ -218,6 +229,9 @@ async function startup() {
       loadingOverlay.style.display = 'none';
     }, 450);
     hudStatusText.textContent = 'CAMERA ERROR - CLICK TO RETRY';
+    if (isCleanMode && obsBrowserNotice) {
+      obsBrowserNotice.classList.add('visible');
+    }
   }
 }
 
@@ -502,4 +516,30 @@ btnRecord.addEventListener('click', async () => {
 });
 
 // Run
-startup();
+if (isCleanMode && window.opener && window.opener.virtualCam) {
+  // FAST-PATH: Parent Studio is already running camera & face tracking!
+  // Directly stream the parent's composited canvas to prevent camera hardware locks.
+  loadingOverlay.style.display = 'none';
+  document.title = 'AR Meme Clean Feed - OBS Window Capture';
+
+  try {
+    const parentCanvas = window.opener.virtualCam.canvas;
+    webcam.srcObject = parentCanvas.captureStream(60);
+    webcam.play().catch(() => {});
+  } catch (e) {
+    console.warn('Parent canvas stream connection error:', e);
+  }
+
+  // Continuously sync standby screen with parent
+  setInterval(() => {
+    if (window.opener && window.opener.virtualCam) {
+      if (!window.opener.virtualCam.isOn) {
+        vcamStandbyOverlay.classList.add('active');
+      } else {
+        vcamStandbyOverlay.classList.remove('active');
+      }
+    }
+  }, 100);
+} else {
+  startup();
+}
